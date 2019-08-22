@@ -1,0 +1,34 @@
+{
+  "name": "whitespace-se/matomo-core",
+  "description": "The leading free/libre analytics platform",
+  "keywords": [
+    "piwik",
+    "matomo",
+    "web",
+    "analytics"
+  ],
+  "type": "matomo-core",
+  "homepage": "https://matomo.org",
+  "license": "GPL-3.0+",
+  "authors": [
+    {
+        "name": "The Matomo Team",
+        "email": "hello@matomo.org",
+        "homepage": "https://matomo.org/team/"
+    }
+  ],
+  "support": {
+      "forum": "https://forum.matomo.org/",
+      "issues": "https://github.com/matomo-org/matomo/issues",
+      "wiki": "https://github.com/matomo-org/matomo/wiki",
+      "source": "https://github.com/matomo-org/matomo"
+  },
+  "require": {
+    "php": ">=5.5.9"
+  },
+  "config":{
+    "platform": {
+      "php": "5.5.9"
+    }
+  }
+}
