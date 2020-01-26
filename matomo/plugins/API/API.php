@@ -181,7 +181,7 @@ class API extends \Piwik\Plugin\API
         return $available;
     }
 
-    public function getSegmentsMetadata($idSites = array(), $_hideImplementationData = true)
+    public function getSegmentsMetadata($idSites = array(), $_hideImplementationData = true, $_showAllSegments = false)
     {
         if (empty($idSites)) {
             Piwik::checkUserHasSomeViewAccess();
@@ -194,7 +194,7 @@ class API extends \Piwik\Plugin\API
 
         $sites   = (is_array($idSites) ? implode('.', $idSites) : (int) $idSites);
         $cache   = Cache::getTransientCache();
-        $cacheKey = 'API.getSegmentsMetadata' . $sites . '_' . (int) $_hideImplementationData . '_' . (int) $isNotAnonymous;
+        $cacheKey = 'API.getSegmentsMetadata' . $sites . '_' . (int) $_hideImplementationData . '_' . (int) $isNotAnonymous . '_' . (int) $_showAllSegments;
         $cacheKey = CacheId::pluginAware($cacheKey);
 
         if ($cache->contains($cacheKey)) {
@@ -202,7 +202,7 @@ class API extends \Piwik\Plugin\API
         }
 
         $metadata = new SegmentMetadata();
-        $segments = $metadata->getSegmentsMetadata($idSites, $_hideImplementationData, $isNotAnonymous);
+        $segments = $metadata->getSegmentsMetadata($idSites, $_hideImplementationData, $isNotAnonymous, $_showAllSegments);
 
         $cache->save($cacheKey, $segments);
 
@@ -476,7 +476,7 @@ class API extends \Piwik\Plugin\API
      * @param bool|int $idDimension
      * @return array
      */
-    public function getRowEvolution($idSite, $period, $date, $apiModule, $apiAction, $label = false, $segment = false, $column = false, $language = false, $idGoal = false, $legendAppendMetric = true, $labelUseAbsoluteUrl = true, $idDimension = false)
+    public function getRowEvolution($idSite, $period, $date, $apiModule, $apiAction, $label = false, $segment = false, $column = false, $language = false, $idGoal = false, $legendAppendMetric = true, $labelUseAbsoluteUrl = true, $idDimension = false, $labelSeries = false)
     {
         // check if site exists
         $idSite = (int) $idSite;
@@ -504,7 +504,7 @@ class API extends \Piwik\Plugin\API
 
         $rowEvolution = new RowEvolution();
         return $rowEvolution->getRowEvolution($idSite, $period, $date, $apiModule, $apiAction, $label, $segment, $column,
-            $language, $apiParameters, $legendAppendMetric, $labelUseAbsoluteUrl);
+            $language, $apiParameters, $legendAppendMetric, $labelUseAbsoluteUrl, $labelSeries);
     }
 
     /**
@@ -525,6 +525,10 @@ class API extends \Piwik\Plugin\API
         $result = array();
         foreach ($urls as $url) {
             $params = Request::getRequestArrayFromString($url . '&format=php&serialize=0');
+
+            if (!empty($params['method']) && $params['method'] === 'API.getBulkRequest') {
+                continue;
+            }
 
             if (isset($params['urls']) && $params['urls'] == $urls) {
                 // by default 'urls' is added to $params as Request::getRequestArrayFromString adds all $_GET/$_POST
@@ -593,7 +597,7 @@ class API extends \Piwik\Plugin\API
         if (!empty($segment['unionOfSegments'])) {
             $values = array();
             foreach ($segment['unionOfSegments'] as $unionSegmentName) {
-                $unionSegment = $this->findSegment($unionSegmentName, $idSite);
+                $unionSegment = $this->findSegment($unionSegmentName, $idSite, $_showAllSegments = true);
 
                 try {
                     $result = $this->getSuggestedValuesForSegmentName($idSite, $unionSegment, $maxSuggestionsToReturn);
@@ -620,9 +624,40 @@ class API extends \Piwik\Plugin\API
         return $values;
     }
 
-    private function findSegment($segmentName, $idSite)
+    /**
+     * Returns category/subcategory pairs as "CategoryId.SubcategoryId" for whom comparison features should
+     * be disabled.
+     *
+     * @return string[]
+     */
+    public function getPagesComparisonsDisabledFor()
     {
-        $segmentsMetadata = $this->getSegmentsMetadata($idSite, $_hideImplementationData = false);
+        $pages = [];
+
+        /**
+         * If your plugin has pages where you'd like comparison features to be disabled, you can add them
+         * via this event. Add the pages as "CategoryId.SubcategoryId".
+         *
+         * **Example**
+         *
+         * ```
+         * public function getPagesComparisonsDisabledFor(&$pages)
+         * {
+         *     $pages[] = "General_Visitors.MyPlugin_MySubcategory";
+         *     $pages[] = "MyPlugin.myControllerAction"; // if your plugin defines a whole page you want comparison disabled for
+         * }
+         * ```
+         *
+         * @param string[] &$pages
+         */
+        Piwik::postEvent('API.getPagesComparisonsDisabledFor', [&$pages]);
+
+        return $pages;
+    }
+
+    private function findSegment($segmentName, $idSite, $_showAllSegments = false)
+    {
+        $segmentsMetadata = $this->getSegmentsMetadata($idSite, $_hideImplementationData = false, $_showAllSegments);
 
         $segmentFound = false;
         foreach ($segmentsMetadata as $segmentMetadata) {

@@ -50,6 +50,7 @@ class Session extends Zend_Session
         if (headers_sent()
             || self::$sessionStarted
             || (defined('PIWIK_ENABLE_SESSION_START') && !PIWIK_ENABLE_SESSION_START)
+            || session_status() == PHP_SESSION_ACTIVE
         ) {
             return;
         }
@@ -173,11 +174,52 @@ class Session extends Zend_Session
 
     public static function close()
     {
-        parent::writeClose();
+        if (self::isSessionStarted()) {
+            // only write/close session if the session was actually started by us
+            // otherwise we will set the session values to base64 encoded and whoever the session started might not expect the values in that way
+            parent::writeClose();
+        }
     }
 
     public static function isSessionStarted()
     {
         return self::$sessionStarted;
+    }
+
+    /**
+     * Write cookie header.  Similar to the native setcookie() function but also supports
+     * the SameSite cookie property.
+     * @param $name
+     * @param $value
+     * @param int $expires
+     * @param string $path
+     * @param string $domain
+     * @param bool $secure
+     * @param bool $httpOnly
+     * @param string $sameSite
+     * @return string
+     */
+    public static function writeCookie($name, $value, $expires = 0, $path = '/', $domain = '/', $secure = false, $httpOnly = false, $sameSite = 'lax')
+    {
+        $headerStr = 'Set-Cookie: ' . rawurlencode($name) . '=' . rawurlencode($value);
+        if ($expires) {
+            $headerStr .= '; expires=' . rawurlencode($expires);
+        }
+        if ($path) {
+            $headerStr .= '; path=' . rawurlencode($path);
+        }
+        if ($domain) {
+            $headerStr .= '; domain=' . rawurlencode($domain);
+        }
+        if ($secure) {
+            $headerStr .= '; secure';
+        }
+        if ($httpOnly) {
+            $headerStr .= '; httponly';
+        }
+        if ($sameSite) {
+            $headerStr .= '; SameSite=' . rawurlencode($sameSite);
+        }
+        return $headerStr;
     }
 }

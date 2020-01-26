@@ -71,15 +71,13 @@ class Model
         $rows = Db::fetchAll($sql);
         foreach ($rows as $row) {
             $duplicateArchives = explode(',', $row['archives']);
+            $countOfArchives = count($duplicateArchives);
 
             $firstArchive = array_shift($duplicateArchives);
             list($firstArchiveId, $firstArchiveValue) = explode('.', $firstArchive);
 
-            // if the first archive (ie, the newest) is an 'ok' or 'ok temporary' archive, then
-            // all invalidated archives after it can be deleted
-            if ($firstArchiveValue == ArchiveWriter::DONE_OK
-                || $firstArchiveValue == ArchiveWriter::DONE_OK_TEMPORARY
-            ) {
+            // if there is more than one archive, the older invalidated ones can be deleted
+            if ($countOfArchives > 1) {
                 foreach ($duplicateArchives as $pair) {
                     if (strpos($pair, '.') === false) {
                         $this->logger->info("GROUP_CONCAT cut off the query result, you may have to purge archives again.");
@@ -115,10 +113,21 @@ class Model
         foreach ($datesByPeriodType as $periodType => $dates) {
             $dateConditions = array();
 
-            foreach ($dates as $date) {
-                $dateConditions[] = "(date1 <= ? AND ? <= date2)";
-                $bind[] = $date;
-                $bind[] = $date;
+            if ($periodType == Period\Range::PERIOD_ID) {
+                foreach ($dates as $date) {
+                    // Ranges in the DB match if their date2 is after the start of the search range and date1 is before the end
+                    // e.g. search range is 2019-01-01 to 2019-01-31
+                    // date2 >= startdate -> Ranges with date2 < 2019-01-01 (ended before 1 January) and are excluded
+                    // date1 <= endate -> Ranges with date1 > 2019-01-31 (started after 31 January) and are excluded
+                    $dateConditions[] = "(date2 >= ? AND date1 <= ?)";
+                    $bind = array_merge($bind, explode(',', $date));
+                }
+            } else {
+                foreach ($dates as $date) {
+                    $dateConditions[] = "(date1 <= ? AND ? <= date2)";
+                    $bind[] = $date;
+                    $bind[] = $date;
+                }
             }
 
             $dateConditionsSql = implode(" OR ", $dateConditions);
@@ -148,7 +157,6 @@ class Model
 
         return Db::query($sql, $bind);
     }
-
 
     public function getTemporaryArchivesOlderThan($archiveTable, $purgeArchivesOlderThan)
     {
@@ -207,7 +215,7 @@ class Model
         return $deletedRows;
     }
 
-    public function getArchiveIdAndVisits($numericTable, $idSite, $period, $dateStartIso, $dateEndIso, $doneFlags, $doneFlagValues)
+    public function getArchiveIdAndVisits($numericTable, $idSite, $period, $dateStartIso, $dateEndIso, $minDatetimeIsoArchiveProcessedUTC, $doneFlags, $doneFlagValues)
     {
         $bindSQL = array($idSite,
             $dateStartIso,
@@ -217,6 +225,12 @@ class Model
 
         $sqlWhereArchiveName = self::getNameCondition($doneFlags, $doneFlagValues);
 
+        $timeStampWhere = '';
+        if ($minDatetimeIsoArchiveProcessedUTC) {
+            $timeStampWhere = " AND ts_archived >= ? ";
+            $bindSQL[]      = $minDatetimeIsoArchiveProcessedUTC;
+        }
+
         $sqlQuery = "SELECT idarchive, value, name, date1 as startDate FROM $numericTable
                      WHERE idsite = ?
                          AND date1 = ?
@@ -225,6 +239,7 @@ class Model
                          AND ( ($sqlWhereArchiveName)
                                OR name = '" . ArchiveSelector::NB_VISITS_RECORD_LOOKED_UP . "'
                                OR name = '" . ArchiveSelector::NB_VISITS_CONVERTED_RECORD_LOOKED_UP . "')
+                         $timeStampWhere
                      ORDER BY idarchive DESC";
         $results = Db::fetchAll($sqlQuery, $bindSQL);
 
@@ -354,50 +369,54 @@ class Model
      * Get a list of IDs of archives with segments that no longer exist in the DB. Excludes temporary archives that 
      * may still be in use, as specified by the $oldestToKeep passed in.
      * @param string $archiveTableName
-     * @param array $segmentHashesById  Whitelist of existing segments, indexed by site ID
+     * @param array $segments  List of segments to match against
      * @param string $oldestToKeep Datetime string
      * @return array With keys idarchive, name, idsite
      */
-    public function getArchiveIdsForDeletedSegments($archiveTableName, array $segmentHashesById, $oldestToKeep)
+    public function getArchiveIdsForSegments($archiveTableName, array $segments, $oldestToKeep)
     {
-        $validSegmentClauses = [];
-
-        foreach ($segmentHashesById as $idSite => $segments) {
-            // segments are md5 hashes and such not a problem re sql injection. for performance etc we don't want to use
-            // bound parameters for the query
-            foreach ($segments as $segment) {
-                if (!preg_match('/^[a-z0-9A-Z]+$/', $segment)) {
-                    throw new Exception($segment . ' expected to be an md5 hash');
-                }
+        $segmentClauses = [];
+        foreach ($segments as $segment) {
+            if (!empty($segment['definition'])) {
+                $segmentClauses[] = $this->getDeletedSegmentWhereClause($segment);
             }
-
-            // Special case as idsite=0 means the segments are not site-specific
-            if ($idSite === 0) {
-                foreach ($segments as $segmentHash) {
-                    $validSegmentClauses[] = '(name LIKE "done' . $segmentHash . '%")';
-                }
-                continue;
-            }
-
-            $idSite = (int)$idSite;
-
-            // Vanilla case - segments that are valid for a single site only
-            $sql = '(idsite = ' . $idSite . ' AND (';
-            $sql .= 'name LIKE "done' . implode('%" OR name LIKE "done', $segments) . '%"';
-            $sql .= '))';
-            $validSegmentClauses[] = $sql;
         }
 
-        $isValidSegmentSql = implode(' OR ', $validSegmentClauses);
+        if (empty($segmentClauses)) {
+            return array();
+        }
+
+        $segmentClauses = implode(' OR ', $segmentClauses);
 
         $sql = 'SELECT idarchive FROM ' . $archiveTableName
-            . ' WHERE name LIKE "done%" AND name != "done"'
-            . ' AND ts_archived < ?'
-            . ' AND NOT (' . $isValidSegmentSql . ')';
+            . ' WHERE ts_archived < ?'
+            . ' AND (' . $segmentClauses . ')';
 
         $rows = Db::fetchAll($sql, array($oldestToKeep));
 
-        return array_map(function($row) { return $row['idarchive']; }, $rows);
+        return array_column($rows, 'idarchive');
+    }
+
+    private function getDeletedSegmentWhereClause(array $segment)
+    {
+        $idSite = (int)$segment['enable_only_idsite'];
+        $segmentHash = Segment::getSegmentHash($segment['definition']);
+        // Valid segment hashes are md5 strings - just confirm that it is so it's safe for SQL injection
+        if (!ctype_xdigit($segmentHash)) {
+            throw new Exception($segment . ' expected to be an md5 hash');
+        }
+
+        $nameClause = 'name LIKE "done' . $segmentHash . '%"';
+        $idSiteClause = '';
+        if ($idSite > 0) {
+            $idSiteClause = ' AND idsite = ' . $idSite;
+        } elseif (! empty($segment['idsites_to_preserve'])) {
+            // A segment for all sites was deleted, but there are segments for a single site with the same definition
+            $idSitesToPreserve = array_map('intval', $segment['idsites_to_preserve']);
+            $idSiteClause = ' AND idsite NOT IN (' . implode(',', $idSitesToPreserve) . ')';
+        }
+
+        return "($nameClause $idSiteClause)";
     }
 
     /**

@@ -323,19 +323,27 @@ class API extends \Piwik\Plugin\API
                 $loginsToLimit = $this->model->getUsersWithAccessToSites($adminIdSites);
             }
 
-            list($users, $totalResults) = $this->model->getUsersWithRole($idSite, $limit, $offset, $filter_search, $filter_access, $loginsToLimit);
+            if ($loginsToLimit !== null && empty($loginsToLimit)) {
+                // if the current user is not the superuser, and getUsersWithAccessToSites() returned an empty result,
+                // access is managed by another plugin, and the current user cannot manage any user with UsersManager
+                Common::sendHeader('X-Matomo-Total-Results: 0');
+                return [];
 
-            foreach ($users as &$user) {
-                $user['superuser_access'] = $user['superuser_access'] == 1;
-                if ($user['superuser_access']) {
-                    $user['role'] = 'superuser';
-                    $user['capabilities'] = [];
-                } else {
-                    list($user['role'], $user['capabilities']) = $this->getRoleAndCapabilitiesFromAccess($user['access']);
-                    $user['role'] = empty($user['role']) ? 'noaccess' : reset($user['role']);
+            } else {
+                list($users, $totalResults) = $this->model->getUsersWithRole($idSite, $limit, $offset, $filter_search, $filter_access, $loginsToLimit);
+
+                foreach ($users as &$user) {
+                    $user['superuser_access'] = $user['superuser_access'] == 1;
+                    if ($user['superuser_access']) {
+                        $user['role'] = 'superuser';
+                        $user['capabilities'] = [];
+                    } else {
+                        list($user['role'], $user['capabilities']) = $this->getRoleAndCapabilitiesFromAccess($user['access']);
+                        $user['role'] = empty($user['role']) ? 'noaccess' : reset($user['role']);
+                    }
+
+                    unset($user['access']);
                 }
-
-                unset($user['access']);
             }
         }
 
@@ -651,6 +659,7 @@ class API extends \Piwik\Plugin\API
     public function addUser($userLogin, $password, $email, $alias = false, $_isPasswordHashed = false, $initialIdSite = null)
     {
         Piwik::checkUserHasSomeAdminAccess();
+        UsersManager::dieIfUsersAdminIsDisabled();
 
         if (!Piwik::hasUserSuperUserAccess()) {
             if (empty($initialIdSite)) {
@@ -709,6 +718,7 @@ class API extends \Piwik\Plugin\API
     {
         Piwik::checkUserHasSuperUserAccess();
         $this->checkUserIsNotAnonymous($userLogin);
+        UsersManager::dieIfUsersAdminIsDisabled();
 
         $requirePasswordConfirmation = self::$SET_SUPERUSER_ACCESS_REQUIRE_PASSWORD_CONFIRMATION;
         self::$SET_SUPERUSER_ACCESS_REQUIRE_PASSWORD_CONFIRMATION = true;
@@ -874,6 +884,7 @@ class API extends \Piwik\Plugin\API
         $isEmailNotificationOnInConfig = Config::getInstance()->General['enable_update_users_email'];
 
         Piwik::checkUserHasSuperUserAccessOrIsTheUser($userLogin);
+        UsersManager::dieIfUsersAdminIsDisabled();
         $this->checkUserIsNotAnonymous($userLogin);
         $this->checkUserExists($userLogin);
 
@@ -912,7 +923,9 @@ class API extends \Piwik\Plugin\API
             $email = $userInfo['email'];
         }
 
-        if ($email != $userInfo['email']) {
+        $hasEmailChanged = Common::mb_strtolower($email) !== Common::mb_strtolower($userInfo['email']);
+
+        if ($hasEmailChanged) {
             $this->checkEmail($email);
             $changeShouldRequirePasswordConfirmation = true;
         }
@@ -927,7 +940,7 @@ class API extends \Piwik\Plugin\API
 
         Cache::deleteTrackerCache();
 
-        if ($email != $userInfo['email'] && $isEmailNotificationOnInConfig) {
+        if ($hasEmailChanged && $isEmailNotificationOnInConfig) {
             $this->sendEmailChangedEmail($userInfo, $email);
         }
 
@@ -957,6 +970,7 @@ class API extends \Piwik\Plugin\API
     public function deleteUser($userLogin)
     {
         Piwik::checkUserHasSuperUserAccess();
+        UsersManager::dieIfUsersAdminIsDisabled();
         $this->checkUserIsNotAnonymous($userLogin);
 
         $this->checkUserExist($userLogin);
@@ -1049,6 +1063,8 @@ class API extends \Piwik\Plugin\API
      */
     public function setUserAccess($userLogin, $access, $idSites)
     {
+        UsersManager::dieIfUsersAdminIsDisabled();
+
         if ($access != 'noaccess') {
             $this->checkAccessType($access);
         }
@@ -1335,7 +1351,7 @@ class API extends \Piwik\Plugin\API
      *
      * If the username/password combination is incorrect an invalid token will be returned.
      *
-     * @param string $userLogin Login
+     * @param string $userLogin Login or Email address
      * @param string $md5Password hashed string of the password (using current hash function; MD5-named for historical reasons)
      * @return string
      */
@@ -1345,6 +1361,14 @@ class API extends \Piwik\Plugin\API
 
         $user = $this->model->getUser($userLogin);
 
+        if (empty($user) && Piwik::isValidEmailString($userLogin)) {
+            $user = $this->model->getUserByEmail($userLogin);
+            
+            if (!empty($user['login'])) {
+                $userLogin = $user['login'];
+            }
+        }
+        
         if (empty($user) || !$this->password->verify($md5Password, $user['password'])) {
             /**
              * @ignore

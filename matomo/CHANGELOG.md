@@ -4,10 +4,27 @@ This is the Developer Changelog for Matomo platform developers. All changes in o
 
 The Product Changelog at **[matomo.org/changelog](https://matomo.org/changelog)** lets you see more details about any Matomo release, such as the list of new guides and FAQs, security fixes, and links to all closed issues. 
 
+## Matomo 3.13.1
+
+### Deprecations
+* The methods `\Piwik\Plugins\SitesManager\isSiteSpecificUserAgentExcludeEnabled()` and `\Piwik\Plugins\SitesManager\setSiteSpecificUserAgentExcludeEnabled()` have been deprecated.
+* The method `\Piwik\SettingsServer::isMatomoForWordPress()` has been added so plugins can detect if the plugin is being executed within Matomo for WordPress or Matomo On-Premise 
+
+## Matomo 3.13.0
+
+### New API
+* New tracker method `setVisitStandardLength` which lets you configure a custom visit standard length in case a custom "visit_standard_length" is configured in the config. Setting only applies when heart beat is enabled.
+* Added new event `Metrics.isLowerValueBetter` so plugins can define if lower metric values are better for additional metrics.
+
+### Other Changes
+* User ID is no longer linked to visitor ID. Actions with different user IDs will still be considered as part of different visits, irrespective of their visitor IDs, but the same visitor ID can be used with different user IDs.
+
 ## Matomo 3.12.0
 
 ### New API
 * Added new event `Visualization.beforeRender`, triggered after immediately before rendering a visualization.
+* Added new event `Http.sendHttpRequest` and `Http.sendHttpRequest.end` so plugins can listen to external HTTP requests, monitor them, or resolve the request themselves.
+* Added new event `CliMulti.supportsAsync` so plugins can force or disable the usage of archiving through the CLI
 
 ## Matomo 3.10.0
 

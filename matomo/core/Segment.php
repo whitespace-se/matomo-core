@@ -13,7 +13,7 @@ use Piwik\API\Request;
 use Piwik\ArchiveProcessor\Rules;
 use Piwik\Container\StaticContainer;
 use Piwik\DataAccess\LogQueryBuilder;
-use Piwik\Plugins\API\API;
+use Piwik\Plugins\SegmentEditor\SegmentEditor;
 use Piwik\Segment\SegmentExpression;
 
 /**
@@ -66,6 +66,11 @@ class Segment
     protected $string = null;
 
     /**
+     * @var string
+     */
+    protected $originalString = null;
+
+    /**
      * @var array
      */
     protected $idSites = null;
@@ -74,6 +79,11 @@ class Segment
      * @var LogQueryBuilder
      */
     private $segmentQueryBuilder;
+
+    /**
+     * @var bool
+     */
+    private $isSegmentEncoded;
 
     /**
      * Truncate the Segments to 8k
@@ -99,12 +109,33 @@ class Segment
             throw new Exception("The Super User has disabled the Segmentation feature.");
         }
 
-        // First try with url decoded value. If that fails, try with raw value.
-        // If that also fails, it will throw the exception
+        $this->originalString = $segmentCondition;
+
+        // The segment expression can be urlencoded. Unfortunately, both the encoded and decoded versions
+        // can usually be parsed successfully. To pick the right one, we try both and pick the one w/ more
+        // successfully parsed subexpressions.
+        $subexpressionsDecoded = 0;
         try {
             $this->initializeSegment(urldecode($segmentCondition), $idSites);
+            $subexpressionsDecoded = $this->segmentExpression->getSubExpressionCount();
         } catch (Exception $e) {
+            // ignore
+        }
+
+        $subexpressionsRaw = 0;
+        try {
             $this->initializeSegment($segmentCondition, $idSites);
+            $subexpressionsRaw = $this->segmentExpression->getSubExpressionCount();
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        if ($subexpressionsRaw > $subexpressionsDecoded) {
+            $this->initializeSegment($segmentCondition, $idSites);
+            $this->isSegmentEncoded = false;
+        } else {
+            $this->initializeSegment(urldecode($segmentCondition), $idSites);
+            $this->isSegmentEncoded = true;
         }
     }
 
@@ -123,7 +154,11 @@ class Segment
         // segment metadata
         if (empty($this->availableSegments)) {
             $this->availableSegments = Request::processRequest('API.getSegmentsMetadata', array(
-                'idSites' => $this->idSites, '_hideImplementationData' => 0, 'filter_limit' => -1, 'filter_offset' => 0
+                'idSites' => $this->idSites,
+                '_hideImplementationData' => 0,
+                'filter_limit' => -1,
+                'filter_offset' => 0,
+                '_showAllSegments' => 1,
             ), []);
         }
 
@@ -331,11 +366,13 @@ class Segment
      * @param false|string $groupBy (optional) Group by clause, eg, `"t2.col2"`.
      * @param int $limit Limit number of result to $limit
      * @param int $offset Specified the offset of the first row to return
+     * @param bool $forceGroupBy Force the group by and not using a subquery. Note: This may make the query slower see https://github.com/matomo-org/matomo/issues/9200#issuecomment-183641293
+     *                           A $groupBy value needs to be set for this to work. 
      * @param int If set to value >= 1 then the Select query (and All inner queries) will be LIMIT'ed by this value.
      *              Use only when you're not aggregating or it will sample the data.
      * @return string The entire select query.
      */
-    public function getSelectQuery($select, $from, $where = false, $bind = array(), $orderBy = false, $groupBy = false, $limit = 0, $offset = 0)
+    public function getSelectQuery($select, $from, $where = false, $bind = array(), $orderBy = false, $groupBy = false, $limit = 0, $offset = 0, $forceGroupBy = false)
     {
         $segmentExpression = $this->segmentExpression;
 
@@ -344,8 +381,23 @@ class Segment
             $limitAndOffset = (int) $offset . ', ' . (int) $limit;
         }
 
-        return $this->segmentQueryBuilder->getSelectQueryString($segmentExpression, $select, $from, $where, $bind,
-            $groupBy, $orderBy, $limitAndOffset);
+        try {
+            if ($forceGroupBy && $groupBy) {
+                $this->segmentQueryBuilder->forceInnerGroupBySubselect(LogQueryBuilder::FORCE_INNER_GROUP_BY_NO_SUBSELECT);
+            }
+            $result = $this->segmentQueryBuilder->getSelectQueryString($segmentExpression, $select, $from, $where, $bind,
+                $groupBy, $orderBy, $limitAndOffset);
+        } catch (Exception $e) {
+            if ($forceGroupBy && $groupBy) {
+                $this->segmentQueryBuilder->forceInnerGroupBySubselect('');
+            }
+            throw $e;
+        }
+
+        if ($forceGroupBy && $groupBy) {
+            $this->segmentQueryBuilder->forceInnerGroupBySubselect('');
+        }
+        return $result;
     }
 
     /**
@@ -407,5 +459,35 @@ class Segment
             || $segment === $segmentCondition
             || $segment === urlencode($segmentCondition)
             || $segment === urldecode($segmentCondition);
+    }
+
+    public function getStoredSegmentName($idSite)
+    {
+        $segment = $this->getString();
+        if (empty($segment)) {
+            return Piwik::translate('SegmentEditor_DefaultAllVisits');
+        }
+
+        $availableSegments = SegmentEditor::getAllSegmentsForSite($idSite);
+
+        $foundStoredSegment = null;
+        foreach ($availableSegments as $storedSegment) {
+            if ($storedSegment['definition'] == $segment
+                || $storedSegment['definition'] == urldecode($segment)
+                || $storedSegment['definition'] == urlencode($segment)
+
+                || $storedSegment['definition'] == $this->originalString
+                || $storedSegment['definition'] == urldecode($this->originalString)
+                || $storedSegment['definition'] == urlencode($this->originalString)
+            ) {
+                $foundStoredSegment = $storedSegment;
+            }
+        }
+
+        if (isset($foundStoredSegment)) {
+            return $foundStoredSegment['name'];
+        }
+
+        return $this->isSegmentEncoded ? urldecode($segment) : $segment;
     }
 }

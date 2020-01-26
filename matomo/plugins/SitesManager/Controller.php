@@ -14,6 +14,7 @@ use Piwik\API\ResponseBuilder;
 use Piwik\Common;
 use Piwik\Exception\UnexpectedWebsiteFoundException;
 use Piwik\Piwik;
+use Piwik\Plugin\Manager;
 use Piwik\Session;
 use Piwik\Settings\Measurable\MeasurableSettings;
 use Piwik\SettingsPiwik;
@@ -33,6 +34,7 @@ class Controller extends \Piwik\Plugin\ControllerAdmin
     public function index()
     {
         Piwik::checkUserHasSomeAdminAccess();
+        SitesManager::dieIfSitesAdminIsDisabled();
 
         return $this->renderTemplate('index');
     }
@@ -52,7 +54,6 @@ class Controller extends \Piwik\Plugin\ControllerAdmin
 
         $globalSettings = array();
         $globalSettings['keepURLFragmentsGlobal'] = API::getInstance()->getKeepURLFragmentsGlobal();
-        $globalSettings['siteSpecificUserAgentExcludeEnabled'] = API::getInstance()->isSiteSpecificUserAgentExcludeEnabled();
         $globalSettings['defaultCurrency'] = API::getInstance()->getDefaultCurrency();
         $globalSettings['searchKeywordParametersGlobal'] = API::getInstance()->getSearchKeywordParametersGlobal();
         $globalSettings['searchCategoryParametersGlobal'] = API::getInstance()->getSearchCategoryParametersGlobal();
@@ -80,7 +81,6 @@ class Controller extends \Piwik\Plugin\ControllerAdmin
             $currency = Common::getRequestVar('currency', false);
             $searchKeywordParameters = Common::getRequestVar('searchKeywordParameters', $default = "");
             $searchCategoryParameters = Common::getRequestVar('searchCategoryParameters', $default = "");
-            $enableSiteUserAgentExclude = Common::getRequestVar('enableSiteUserAgentExclude', $default = 0);
             $keepURLFragments = Common::getRequestVar('keepURLFragments', $default = 0);
 
             $api = API::getInstance();
@@ -90,7 +90,6 @@ class Controller extends \Piwik\Plugin\ControllerAdmin
             $api->setGlobalExcludedIps($excludedIps);
             $api->setGlobalExcludedUserAgents($excludedUserAgents);
             $api->setGlobalSearchParameters($searchKeywordParameters, $searchCategoryParameters);
-            $api->setSiteSpecificUserAgentExcludeEnabled($enableSiteUserAgentExclude == 1);
             $api->setKeepURLFragmentsGlobal($keepURLFragments);
 
             $toReturn = $response->getResponse();
@@ -159,12 +158,26 @@ class Controller extends \Piwik\Plugin\ControllerAdmin
             'idSite' => $this->idSite
         ), $viewType = 'basic');
 
+        $googleAnalyticsImporterMessage = '';
+        if (Manager::getInstance()->isPluginLoaded('GoogleAnalyticsImporter')) {
+            $googleAnalyticsImporterMessage = '<h3>' . Piwik::translate('CoreAdminHome_ImportFromGoogleAnalytics') . '</h3>'
+                . '<p>' . Piwik::translate('CoreAdminHome_ImportFromGoogleAnalyticsDescription', ['<a href="https://plugins.matomo.org/GoogleAnalyticsImporter" rel="noopener noreferrer" target="_blank">', '</a>']) . '</p>'
+                . '<p></p>';
+
+            /**
+             * @ignore
+             */
+            Piwik::postEvent('SitesManager.siteWithoutData.customizeImporterMessage', [&$googleAnalyticsImporterMessage]);
+        }
+
         return $this->renderTemplateAs('siteWithoutData', array(
             'siteName'      => $this->site->getName(),
             'idSite'        => $this->idSite,
             'jsTag'         => $jsTag,
             'piwikUrl'      => $piwikUrl,
-            'emailBody'     => $emailContent
+            'emailBody'     => $emailContent,
+            'showMatomoLinks' => $showMatomoLinks,
+            'googleAnalyticsImporterMessage' => $googleAnalyticsImporterMessage,
         ), $viewType = 'basic');
     }
 }

@@ -8,10 +8,12 @@ use Piwik\Config;
 
 return array(
 
-    'path.root' => PIWIK_USER_PATH,
+    'path.root' => PIWIK_DOCUMENT_ROOT,
+
+    'path.misc.user' => 'misc/user/',
 
     'path.tmp' => function (ContainerInterface $c) {
-        $root = $c->get('path.root');
+        $root = PIWIK_USER_PATH;
 
         // TODO remove that special case and instead have plugins override 'path.tmp' to add the instance id
         if ($c->has('ini.General.instance_id')) {
@@ -214,4 +216,6 @@ return array(
     'archiving.performance.logger' => null,
 
     \Piwik\CronArchive\Performance\Logger::class => DI\object()->constructorParameter('logger', DI\get('archiving.performance.logger')),
+
+    \Piwik\Concurrency\LockBackend::class => \DI\get(\Piwik\Concurrency\LockBackend\MySqlLockBackend::class),
 );

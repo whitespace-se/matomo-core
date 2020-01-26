@@ -15,10 +15,8 @@ use Piwik\CacheId;
 use Piwik\Cache as PiwikCache;
 use Piwik\Common;
 use Piwik\DataTable;
-use Piwik\Db;
 use Piwik\Metrics;
 use Piwik\Piwik;
-use Piwik\Plugin\Report;
 use Piwik\Plugins\API\DataTable\MergeDataTables;
 use Piwik\Plugins\CoreHome\Columns\Metrics\ConversionRate;
 use Piwik\Plugins\Goals\Columns\Metrics\AverageOrderRevenue;
@@ -56,6 +54,7 @@ use Piwik\Validators\WhitelistedValue;
 class API extends \Piwik\Plugin\API
 {
     const AVG_PRICE_VIEWED = 'avg_price_viewed';
+    /** @deprecated Use VisitFrequency\API::NEW_VISITOR_SEGMENT */
     const NEW_VISIT_SEGMENT = 'visitorType==new';
 
     /**
@@ -440,7 +439,7 @@ class API extends \Piwik\Plugin\API
      * @param bool $showAllGoalSpecificMetrics whether to show all goal specific metrics when no goal is set
      * @return DataTable
      */
-    public function get($idSite, $period, $date, $segment = false, $idGoal = false, $columns = array(), $showAllGoalSpecificMetrics = false)
+    public function get($idSite, $period, $date, $segment = false, $idGoal = false, $columns = array(), $showAllGoalSpecificMetrics = false, $compare = false)
     {
         Piwik::checkUserHasViewAccess($idSite);
 
@@ -449,7 +448,7 @@ class API extends \Piwik\Plugin\API
 
         $segments = array(
             '' => false,
-            '_new_visit' => self::NEW_VISIT_SEGMENT,
+            '_new_visit' => VisitFrequencyAPI::NEW_VISITOR_SEGMENT,
             '_returning_visit' => VisitFrequencyAPI::RETURNING_VISITOR_SEGMENT
         );
 
@@ -466,7 +465,7 @@ class API extends \Piwik\Plugin\API
                 'columns' => $columns,
                 'showAllGoalSpecificMetrics' => $showAllGoalSpecificMetrics,
                 'format_metrics' => Common::getRequestVar('format_metrics', 'bc'),
-            ));
+            ), $default = []);
 
             $tableSegmented->filter('Piwik\Plugins\Goals\DataTable\Filter\AppendNameToColumnNames',
                                     array($appendToMetricName));
@@ -477,6 +476,19 @@ class API extends \Piwik\Plugin\API
                 $merger = new MergeDataTables();
                 $merger->mergeDataTables($table, $tableSegmented);
             }
+        }
+
+        // if we are comparing, this will be queried with format_metrics=0, but we will eventually need to format the metrics.
+        // unfortunately, we can't do that since the processed metric information is in the GetMetrics report. in this case,
+        // we queue the filter so it will eventually be formatted.
+        if (!empty($compare)) {
+            $getMetricsReport = ReportsProvider::factory('Goals', 'getMetrics');
+            $table->queueFilter(function (DataTable $t) use ($getMetricsReport) {
+                $t->setMetadata(Metrics\Formatter::PROCESSED_METRICS_FORMATTED_FLAG, false);
+
+                $formatter = new Metrics\Formatter();
+                $formatter->formatMetrics($t, $getMetricsReport, $metricsToFormat = null, $formatAll = true);
+            });
         }
 
         return $table;
