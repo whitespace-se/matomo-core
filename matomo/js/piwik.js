@@ -3290,7 +3290,8 @@ if (typeof window.Piwik !== 'object') {
                     (msToExpire ? ';expires=' + expiryDate.toGMTString() : '') +
                     ';path=' + (path || '/') +
                     (domain ? ';domain=' + domain : '') +
-                    (isSecure ? ';secure' : '');
+                    (isSecure ? ';secure' : '') +
+                    ';SameSite=Lax';
             }
 
             /*
@@ -7730,7 +7731,7 @@ if (typeof window.Piwik !== 'object') {
         // initialize the Piwik singleton
         addEventListener(windowAlias, 'beforeunload', beforeUnloadHandler, false);
 
-        window.addEventListener('message', function(e) {
+        addEventListener(windowAlias,'message', function(e) {
             if (!e || !e.origin) {
                 return;
             }
@@ -7813,7 +7814,7 @@ if (typeof window.Piwik !== 'object') {
                     maq_optout_by_default: tracker.isConsentRequired()
                 });
             }
-        });
+        }, false);
 
         Date.prototype.getTimeAlias = Date.prototype.getTime;
 
