@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInitec4983d49b7d3e0140fb029ae0cf6532
+class ComposerStaticInite73d303dda4e084c9efc3d2e6d883365
 {
     public static $files = array (
         '04c6c5c2f7095ccf6c481d3e53e1776f' => __DIR__ . '/..' . '/mustangostang/spyc/Spyc.php',
@@ -1131,6 +1131,7 @@ class ComposerStaticInitec4983d49b7d3e0140fb029ae0cf6532
         'Piwik\\Plugins\\CoreAdminHome\\Commands\\DeleteLogsData' => __DIR__ . '/../..' . '/plugins/CoreAdminHome/Commands/DeleteLogsData.php',
         'Piwik\\Plugins\\CoreAdminHome\\Commands\\FixDuplicateLogActions' => __DIR__ . '/../..' . '/plugins/CoreAdminHome/Commands/FixDuplicateLogActions.php',
         'Piwik\\Plugins\\CoreAdminHome\\Commands\\InvalidateReportData' => __DIR__ . '/../..' . '/plugins/CoreAdminHome/Commands/InvalidateReportData.php',
+        'Piwik\\Plugins\\CoreAdminHome\\Commands\\MigrateTokenAuths' => __DIR__ . '/../..' . '/plugins/CoreAdminHome/Commands/MigrateTokenAuths.php',
         'Piwik\\Plugins\\CoreAdminHome\\Commands\\OptimizeArchiveTables' => __DIR__ . '/../..' . '/plugins/CoreAdminHome/Commands/OptimizeArchiveTables.php',
         'Piwik\\Plugins\\CoreAdminHome\\Commands\\PurgeOldArchiveData' => __DIR__ . '/../..' . '/plugins/CoreAdminHome/Commands/PurgeOldArchiveData.php',
         'Piwik\\Plugins\\CoreAdminHome\\Commands\\RunScheduledTasks' => __DIR__ . '/../..' . '/plugins/CoreAdminHome/Commands/RunScheduledTasks.php',
@@ -2593,6 +2594,7 @@ class ComposerStaticInitec4983d49b7d3e0140fb029ae0cf6532
         'Piwik\\Plugins\\UsersManager\\tests\\Fixtures\\ManyUsers' => __DIR__ . '/../..' . '/plugins/UsersManager/tests/Fixtures/ManyUsers.php',
         'Piwik\\Plugins\\UsersManager\\tests\\Integration\\ModelTest' => __DIR__ . '/../..' . '/plugins/UsersManager/tests/Integration/ModelTest.php',
         'Piwik\\Plugins\\UsersManager\\tests\\Integration\\UserAccessFilterTest' => __DIR__ . '/../..' . '/plugins/UsersManager/tests/Integration/UserAccessFilterTest.php',
+        'Piwik\\Plugins\\UsersManager\\tests\\Integration\\UserPreferencesTest' => __DIR__ . '/../..' . '/plugins/UsersManager/tests/Integration/UserPreferencesTest.php',
         'Piwik\\Plugins\\UsersManager\\tests\\Integration\\UsersManagerTest' => __DIR__ . '/../..' . '/plugins/UsersManager/tests/Integration/UsersManagerTest.php',
         'Piwik\\Plugins\\UsersManager\\tests\\System\\ApiTest' => __DIR__ . '/../..' . '/plugins/UsersManager/tests/System/ApiTest.php',
         'Piwik\\Plugins\\VisitFrequency\\API' => __DIR__ . '/../..' . '/plugins/VisitFrequency/API.php',
@@ -2759,6 +2761,7 @@ class ComposerStaticInitec4983d49b7d3e0140fb029ae0cf6532
         'Piwik\\Updater\\Migration' => __DIR__ . '/../..' . '/core/Updater/Migration.php',
         'Piwik\\Updater\\Migration\\Config\\Factory' => __DIR__ . '/../..' . '/core/Updater/Migration/Config/Factory.php',
         'Piwik\\Updater\\Migration\\Config\\Set' => __DIR__ . '/../..' . '/core/Updater/Migration/Config/Set.php',
+        'Piwik\\Updater\\Migration\\Custom' => __DIR__ . '/../..' . '/core/Updater/Migration/Custom.php',
         'Piwik\\Updater\\Migration\\Db' => __DIR__ . '/../..' . '/core/Updater/Migration/Db.php',
         'Piwik\\Updater\\Migration\\Db\\AddColumn' => __DIR__ . '/../..' . '/core/Updater/Migration/Db/AddColumn.php',
         'Piwik\\Updater\\Migration\\Db\\AddColumns' => __DIR__ . '/../..' . '/core/Updater/Migration/Db/AddColumns.php',
@@ -3233,11 +3236,11 @@ class ComposerStaticInitec4983d49b7d3e0140fb029ae0cf6532
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInitec4983d49b7d3e0140fb029ae0cf6532::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInitec4983d49b7d3e0140fb029ae0cf6532::$prefixDirsPsr4;
-            $loader->prefixesPsr0 = ComposerStaticInitec4983d49b7d3e0140fb029ae0cf6532::$prefixesPsr0;
-            $loader->fallbackDirsPsr0 = ComposerStaticInitec4983d49b7d3e0140fb029ae0cf6532::$fallbackDirsPsr0;
-            $loader->classMap = ComposerStaticInitec4983d49b7d3e0140fb029ae0cf6532::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInite73d303dda4e084c9efc3d2e6d883365::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInite73d303dda4e084c9efc3d2e6d883365::$prefixDirsPsr4;
+            $loader->prefixesPsr0 = ComposerStaticInite73d303dda4e084c9efc3d2e6d883365::$prefixesPsr0;
+            $loader->fallbackDirsPsr0 = ComposerStaticInite73d303dda4e084c9efc3d2e6d883365::$fallbackDirsPsr0;
+            $loader->classMap = ComposerStaticInite73d303dda4e084c9efc3d2e6d883365::$classMap;
 
         }, null, ClassLoader::class);
     }
