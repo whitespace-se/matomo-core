@@ -1,6 +1,6 @@
 <?php
 /**
- * Piwik - free/libre analytics platform
+ * Matomo - free/libre analytics platform
  *
  * @link https://matomo.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
@@ -8,6 +8,7 @@
  */
 namespace Piwik;
 
+use Composer\CaBundle\CaBundle;
 use Exception;
 
 /**
@@ -139,7 +140,7 @@ class Http
      *@throws Exception
      */
     public static function sendHttpRequestBy(
-        $method = 'socket',
+        $method,
         $aUrl,
         $timeout,
         $userAgent = null,
@@ -154,10 +155,36 @@ class Http
         $httpUsername = null,
         $httpPassword = null,
         $requestBody = null,
-        $additionalHeaders = array()
+        $additionalHeaders = array(),
+        $forcePost = null
     ) {
         if ($followDepth > 5) {
             throw new Exception('Too many redirects (' . $followDepth . ')');
+        }
+
+        $aUrl = trim($aUrl);
+        $parsedUrl = @parse_url($aUrl);
+
+        if (empty($parsedUrl['scheme'])) {
+            throw new Exception('Missing scheme in given url');
+        }
+
+        $allowedProtocols = Config::getInstance()->General['allowed_outgoing_protocols'];
+        $isAllowed = false;
+
+        foreach (explode(',', $allowedProtocols) as $protocol) {
+            if (strtolower($parsedUrl['scheme']) === strtolower(trim($protocol))) {
+                $isAllowed = true;
+                break;
+            }
+        }
+
+        if (!$isAllowed) {
+            throw new Exception(sprintf(
+                'Protocol %s not in list of allowed protocols: %s',
+                $parsedUrl['scheme'],
+                $allowedProtocols
+            ));
         }
 
         $contentLength = 0;
@@ -192,8 +219,6 @@ class Http
         }
 
         list($proxyHost, $proxyPort, $proxyUser, $proxyPassword) = self::getProxyConfiguration($aUrl);
-
-        $aUrl = trim($aUrl);
 
         // other result data
         $status  = null;
@@ -245,7 +270,7 @@ class Http
 		     * @ignore
 		     */
                     Piwik::postEvent('Http.sendHttpRequest.end', array($aUrl, $httpEventParams, &$response, &$status, &$headers));
- 
+
                     if ($destinationPath && file_exists($destinationPath)) {
                         return true;
                     }
@@ -534,10 +559,14 @@ class Http
                 }
 
                 if (!$status && $response === false) {
-                    $error = error_get_last();
-                    throw new \Exception($error['message']);
+                    $error = ErrorHandler::getLastError();
+                    throw new \Exception($error);
                 }
                 $fileLength = strlen($response);
+            }
+
+            foreach ($http_response_header as $line) {
+                self::parseHeaderLine($headers, $line);
             }
 
             // restore the socket_timeout value
@@ -617,6 +646,9 @@ class Http
                     CURLOPT_FOLLOWLOCATION => true,
                     CURLOPT_MAXREDIRS      => 5,
                 );
+                if ($forcePost) {
+                    $curl_options[CURLOPT_POSTREDIR] = CURL_REDIR_POST_ALL;
+                }
                 @curl_setopt_array($ch, $curl_options);
             }
 
@@ -881,7 +913,7 @@ class Http
         if (!empty($general['custom_cacert_pem'])) {
             $cacertPath = $general['custom_cacert_pem'];
         } else {
-            $cacertPath = PIWIK_INCLUDE_PATH . '/core/DataFiles/cacert.pem';
+            $cacertPath = CaBundle::getBundledCaBundlePath();
         }
         @curl_setopt($ch, CURLOPT_CAINFO, $cacertPath);
     }
@@ -890,7 +922,7 @@ class Http
     {
         return !empty($_SERVER['HTTP_USER_AGENT'])
             ? $_SERVER['HTTP_USER_AGENT']
-            : 'Piwik/' . Version::VERSION;
+            : 'Matomo/' . Version::VERSION;
     }
 
     /**

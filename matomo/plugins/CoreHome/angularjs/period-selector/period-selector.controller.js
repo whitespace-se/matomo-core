@@ -1,7 +1,7 @@
 /*!
- * Piwik - free/libre analytics platform
+ * Matomo - free/libre analytics platform
  *
- * @link http://piwik.org
+ * @link https://matomo.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  */
 
@@ -15,6 +15,12 @@
             piwikMaxDate = new Date(piwik.maxDateYear, piwik.maxDateMonth - 1, piwik.maxDateDay);
 
         var vm = this;
+
+        vm.comparePeriodDropdownOptions = [
+            {key: 'custom', value: _pk_translate('General_Custom')},
+            {key: 'previousPeriod', value: _pk_translate('General_PreviousPeriod').replace(/\s+/, piwikHelper.htmlDecode('&nbsp;'))},
+            {key: 'previousYear', value: _pk_translate('General_PreviousYear').replace(/\s+/, piwikHelper.htmlDecode('&nbsp;'))},
+        ];
 
         // the period & date currently being viewed
         vm.periodValue = null;
@@ -132,6 +138,12 @@
 
             vm.dateValue = vm.startRangeDate = vm.endRangeDate = null;
 
+            try {
+                piwikPeriods.parse(strPeriod, strDate);
+            } catch (e) {
+                return;
+            }
+
             if (strPeriod === 'range') {
                 var period = piwikPeriods.get(strPeriod).parse(strDate);
                 vm.dateValue = period.startDate;
@@ -150,8 +162,16 @@
         function getCurrentlyViewingText() {
             var date;
             if (vm.periodValue === 'range') {
+                if (!vm.startRangeDate || ! vm.endRangeDate) {
+                    return _pk_translate('General_Error');
+                }
+
                 date = vm.startRangeDate + ',' + vm.endRangeDate;
             } else {
+                if (!vm.dateValue) {
+                    return _pk_translate('General_Error');
+                }
+
                 date = formatDate(vm.dateValue);
             }
 
@@ -257,9 +277,16 @@
                 currentDateRange[0].setFullYear(currentDateRange[0].getFullYear() - 1);
                 currentDateRange[1].setFullYear(currentDateRange[1].getFullYear() - 1);
 
+                if (vm.selectedPeriod === 'range') {
+                    return {
+                        comparePeriods: ['range'],
+                        compareDates: [piwikPeriods.format(currentDateRange[0]) + ',' + piwikPeriods.format(currentDateRange[1])],
+                    };
+                }
+
                 return {
-                    comparePeriods: ['range'],
-                    compareDates: [piwikPeriods.format(currentDateRange[0]) + ',' + piwikPeriods.format(currentDateRange[1])],
+                    comparePeriods: [vm.selectedPeriod],
+                    compareDates: [piwikPeriods.format(currentDateRange[0])],
                 };
             } else {
                 console.warn("Unknown compare period type: " + vm.comparePeriodType);

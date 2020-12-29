@@ -1,6 +1,6 @@
 <?php
 /**
- * Piwik - free/libre analytics platform
+ * Matomo - free/libre analytics platform
  *
  * @link https://matomo.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
@@ -91,7 +91,10 @@ class SettingsServer
      */
     public static function isWindows()
     {
-        return DIRECTORY_SEPARATOR === '\\';
+        if (PHP_OS_FAMILY == "Unknown") {
+            return DIRECTORY_SEPARATOR === '\\';
+        }
+        return PHP_OS_FAMILY === "Windows";
     }
 
     /**
@@ -142,6 +145,11 @@ class SettingsServer
      */
     public static function raiseMemoryLimitIfNecessary()
     {
+        if (self::isArchivePhpTriggered()) {
+            // core:archive command: no time limit
+            self::setMaxExecutionTime( 0 );
+        }
+
         $memoryLimit = self::getMemoryLimitValue();
         if ($memoryLimit === false) {
             return false;
@@ -149,8 +157,7 @@ class SettingsServer
         $minimumMemoryLimit = Config::getInstance()->General['minimum_memory_limit'];
 
         if (self::isArchivePhpTriggered()) {
-            // core:archive command: no time limit, high memory limit
-            self::setMaxExecutionTime(0);
+            // core:archive command:  high memory limit
             $minimumMemoryLimitWhenArchiving = Config::getInstance()->General['minimum_memory_limit_when_archiving'];
             if ($memoryLimit < $minimumMemoryLimitWhenArchiving) {
                 return self::setMemoryLimit($minimumMemoryLimitWhenArchiving);
@@ -224,7 +231,9 @@ class SettingsServer
     {
         // in the event one or the other is disabled...
         @ini_set('max_execution_time', $executionTime);
-        @set_time_limit($executionTime);
+        if (function_exists('set_time_limit')) {
+            @set_time_limit($executionTime);
+        }
     }
 
     public static function isMac()

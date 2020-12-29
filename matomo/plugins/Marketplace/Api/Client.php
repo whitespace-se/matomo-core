@@ -1,6 +1,6 @@
 <?php
 /**
- * Piwik - free/libre analytics platform
+ * Matomo - free/libre analytics platform
  *
  * @link https://matomo.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
@@ -8,17 +8,13 @@
  */
 namespace Piwik\Plugins\Marketplace\Api;
 
-use Piwik\API\Request;
-use Piwik\Cache;
+use Matomo\Cache\Lazy;
 use Piwik\Common;
 use Piwik\Container\StaticContainer;
-use Piwik\DataTable;
 use Piwik\Filesystem;
 use Piwik\Http;
-use Piwik\Piwik;
 use Piwik\Plugin;
 use Piwik\Plugins\Marketplace\Environment;
-use Piwik\Plugins\Marketplace\Api\Service;
 use Piwik\SettingsServer;
 use Exception as PhpException;
 use Psr\Log\LoggerInterface;
@@ -37,7 +33,7 @@ class Client
     private $service;
 
     /**
-     * @var Cache\Lazy
+     * @var Lazy
      */
     private $cache;
 
@@ -56,7 +52,7 @@ class Client
      */
     private $environment;
 
-    public function __construct(Service $service, Cache\Lazy $cache, LoggerInterface $logger, Environment $environment)
+    public function __construct(Service $service, Lazy $cache, LoggerInterface $logger, Environment $environment)
     {
         $this->service = $service;
         $this->cache = $cache;
@@ -145,7 +141,7 @@ class Client
         }
 
         // in the beginning we allowed to specify a download path but this way we make sure security is always taken
-        // care of and we always generate a random download filename.
+        // care of and we always generate a random download filename.Marketplace/Api/Client.php
         $target = $this->getRandomTmpPluginDownloadFilename();
 
         Filesystem::deleteFileIfExists($target);
@@ -181,63 +177,6 @@ class Client
 
         $params = array('plugins' => $params);
         $params = array('plugins' => json_encode($params));
-
-        if ($this->service->hasAccessToken() && Plugin\Manager::getInstance()->isPluginActivated('MultiSites')) {
-            $numPageviews = 0;
-
-            try {
-                $multiSites = null;
-                Piwik::doAsSuperUser(function () use (&$multiSites) {
-                    $multiSites = Request::processRequest('MultiSites.getAll', array(
-                        'period' => 'month',
-                        'date' => 'previous1',
-                        'showColumns' => 'nb_pageviews',
-                        'filter_limit' => -1,
-                        'filter_offset' => 0
-                    ));
-                });
-
-                /** @var DataTable\Map $multiSites */
-                if ($multiSites && $multiSites->getRowsCount()) {
-                    foreach ($multiSites->getDataTables() as $table) {
-                        foreach ($table->getRows() as $row) {
-                            $pageviews = $row->getColumn('nb_pageviews');
-                            if ($pageviews) {
-                                $numPageviews += $pageviews;
-                            }
-                        }
-                    }
-                }
-
-                $numPageviews = $numPageviews / 1000;
-                if ($numPageviews < 50) {
-                    $params['bucket'] = 1;
-                } elseif ($numPageviews < 100) {
-                    $params['bucket'] = 2;
-                } elseif ($numPageviews < 300) {
-                    $params['bucket'] = 3;
-                } elseif ($numPageviews < 600) {
-                    $params['bucket'] = 4;
-                } elseif ($numPageviews < 1000) {
-                    $params['bucket'] = 5;
-                } elseif ($numPageviews < 2000) {
-                    $params['bucket'] = 6;
-                } elseif ($numPageviews < 5000) {
-                    $params['bucket'] = 7;
-                } elseif ($numPageviews < 10000) {
-                    $params['bucket'] = 8;
-                } elseif ($numPageviews < 25000) {
-                    $params['bucket'] = 9;
-                } elseif ($numPageviews < 50000) {
-                    $params['bucket'] = 10;
-                } else {
-                    $params['bucket'] = 11;
-                }
-            } catch (\Exception $e) {
-                // igonre any error
-            }
-
-        }
 
         $hasUpdates = $this->fetch('plugins/checkUpdates', $params);
 
