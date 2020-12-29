@@ -1,6 +1,6 @@
 <?php
 /**
- * Piwik - free/libre analytics platform
+ * Matomo - free/libre analytics platform
  *
  * @link https://matomo.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
@@ -21,10 +21,12 @@ use Piwik\SettingsServer;
  */
 class Process
 {
+    private $finished = null;
     private $pidFile = '';
     private $timeCreation = null;
     private $isSupported = null;
     private $pid = null;
+    private $started = null;
 
     public function __construct($pid)
     {
@@ -61,6 +63,16 @@ class Process
 
     public function hasStarted($content = null)
     {
+        if (!$this->started) {
+            $this->started = $this->checkPidIfHasStarted($content);
+        }
+        // PID will be deleted when process has finished so we want to remember this process started at some point. Otherwise we might return false here once the process finished.
+        // therefore we want to "cache" a successful start
+        return $this->started;
+    }
+
+    private function checkPidIfHasStarted($content = null)
+    {
         if (is_null($content)) {
             $content = $this->getPidFileContent();
         }
@@ -81,6 +93,10 @@ class Process
 
     public function hasFinished()
     {
+        if ($this->finished) {
+            return true;
+        }
+
         $content = $this->getPidFileContent();
 
         return !$this->doesPidFileExist($content);
@@ -129,6 +145,7 @@ class Process
 
     public function finishProcess()
     {
+        $this->finished = true;
         Filesystem::deleteFileIfExists($this->pidFile);
     }
 
@@ -181,7 +198,8 @@ class Process
             return false;
         }
 
-        if (!in_array(getmypid(), self::getRunningProcesses())) {
+        $pid = @getmypid();
+        if (empty($pid) || !in_array($pid, self::getRunningProcesses())) {
             return false;
         }
 
@@ -249,7 +267,7 @@ class Process
 
     public static function getListOfRunningProcesses()
     {
-        $processes = `ps ex 2>/dev/null`;
+        $processes = `ps x 2>/dev/null`;
         if (empty($processes)) {
             return array();
         }
@@ -261,7 +279,7 @@ class Process
      */
      public static function getRunningProcesses()
      {
-         $ids = explode("\n", trim(`ps ex 2>/dev/null | awk '! /defunct/ {print $1}' 2>/dev/null`));
+         $ids = explode("\n", trim(`ps x 2>/dev/null | awk '! /defunct/ {print $1}' 2>/dev/null`));
 
          $ids = array_map('intval', $ids);
          $ids = array_filter($ids, function ($id) {
