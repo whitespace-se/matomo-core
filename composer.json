@@ -1,5 +1,5 @@
 {
-  "name": "whitespace-se/matomo-core",
+  "name": "whitespace-se/matomo-test",
   "description": "The leading free/libre analytics platform",
   "keywords": [
     "piwik",
@@ -7,7 +7,7 @@
     "web",
     "analytics"
   ],
-  "type": "matomo-core",
+  "type": "piw",
   "homepage": "https://matomo.org",
   "license": "GPL-3.0+",
   "authors": [
