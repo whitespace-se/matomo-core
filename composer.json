@@ -37,10 +37,9 @@
             }
         }
     ],
-    "minimum-stability": "dev",
     "require": {
         "php": ">=7.2.5",
-        "matomo/matomo-core": "dev-master"
+        "matomo/matomo-core": "4.2.1"
     },
     "config": {
         "platform": {
