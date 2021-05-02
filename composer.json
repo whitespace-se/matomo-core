@@ -1,34 +1,48 @@
 {
-  "name": "whitespace-se/matomo-test",
-  "description": "The leading free/libre analytics platform",
-  "keywords": [
-    "piwik",
-    "matomo",
-    "web",
-    "analytics"
-  ],
-  "type": "piw",
-  "homepage": "https://matomo.org",
-  "license": "GPL-3.0+",
-  "authors": [
-    {
-      "name": "The Matomo Team",
-      "email": "hello@matomo.org",
-      "homepage": "https://matomo.org/team/"
+    "name": "whitespace-se/matomo-core",
+    "description": "The leading free/libre analytics platform",
+    "keywords": [
+        "piwik",
+        "matomo",
+        "web",
+        "analytics"
+    ],
+    "type": "piwik-plugin",
+    "homepage": "https://matomo.org",
+    "license": "GPL-3.0+",
+    "authors": [
+        {
+            "name": "The Matomo Team",
+            "email": "hello@matomo.org",
+            "homepage": "https://matomo.org/team/"
+        }
+    ],
+    "support": {
+        "forum": "https://forum.matomo.org/",
+        "issues": "https://github.com/matomo-org/matomo/issues",
+        "wiki": "https://github.com/matomo-org/matomo/wiki",
+        "source": "https://github.com/matomo-org/matomo"
+    },
+    "repositories": [
+        {
+            "type": "package",
+            "package": {
+                "name": "whiespace-se/matomo-core",
+                "version": "4.2.1",
+                "type": "piwik-plugin",
+                "dist": {
+                    "type": "zip",
+                    "url": "https://builds.piwik.org/matomo-4.2.1.zip"
+                }
+            }
+        }
+    ],
+    "require": {
+        "php": ">=7.2.5"
+    },
+    "config": {
+        "platform": {
+            "php": "7.2.9"
+        }
     }
-  ],
-  "support": {
-    "forum": "https://forum.matomo.org/",
-    "issues": "https://github.com/matomo-org/matomo/issues",
-    "wiki": "https://github.com/matomo-org/matomo/wiki",
-    "source": "https://github.com/matomo-org/matomo"
-  },
-  "require": {
-    "php": ">=7.2.5"
-  },
-  "config": {
-    "platform": {
-      "php": "7.2.9"
-    }
-  }
 }
