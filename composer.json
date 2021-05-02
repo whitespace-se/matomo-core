@@ -39,7 +39,7 @@
     ],
     "require": {
         "php": ">=7.2.5",
-        "matomo/matomo-core": "4.2.1"
+        "matomo/matomo-core": "*"
     },
     "config": {
         "platform": {
