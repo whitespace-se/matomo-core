@@ -27,7 +27,7 @@
         {
             "type": "package",
             "package": {
-                "name": "whiespace-se/matomo-core",
+                "name": "matomo/matomo-core",
                 "version": "4.2.1",
                 "type": "piwik-plugin",
                 "dist": {
