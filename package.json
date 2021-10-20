@@ -2,7 +2,7 @@
   "name": "@whitespace/matomo-core",
   "version": "1.0.0",
   "repository": "https://github.com/whitespace-se/matomo-core.git",
-  "author": "Whitespace AB",
+  "author": "Whitespace AB <code@whitespace.se>",
   "license": "GNU AFFERO",
   "devDependencies": {
     "@prettier/plugin-php": "^0.16.2",
